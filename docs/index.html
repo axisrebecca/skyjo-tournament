@@ -1,29 +1,46 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Skyjo Tournament</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <h1>Skyjo Tournament</h1>
-  <p id="status">Connecting…</p>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Skyjo Tournament</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <h1>Skyjo Tournament</h1>
+    <p id="status">Connecting…</p>
 
-  <section id="roster">
-    <h2>Players</h2>
-    <ul id="player-list"></ul>
-  </section>
+    <section id="roster">
+      <h2>Players</h2>
+      <form id="auth-test-form">
+        <label>
+          Organizer PIN
+          <input
+            id="organizer-pin"
+            type="password"
+            inputmode="numeric"
+            pattern="[0-9]{6}"
+            maxlength="6"
+            autocomplete="current-password"
+            required
+          />
+        </label>
+        <button type="submit">Test PIN</button>
+      </form>
+      <p id="auth-status" role="status"></p>
+      <ul id="player-list"></ul>
+    </section>
 
-  <section id="leaderboard">
-    <h2>Leaderboard</h2>
-    <p>Coming soon.</p>
-  </section>
+    <section id="leaderboard">
+      <h2>Leaderboard</h2>
+      <p>Coming soon.</p>
+    </section>
 
-  <!-- Firebase (config is public by design, see firebase-setup.md) -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-  <script src="firebase-config.js"></script>
-  <script src="app.js"></script>
-</body>
+    <!-- Firebase (config is public by design, see firebase-setup.md) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="app.js"></script>
+  </body>
 </html>
