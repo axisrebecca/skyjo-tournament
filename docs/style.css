@@ -5,6 +5,10 @@ body {
   padding: 0 1rem;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 section {
   margin-top: 2rem;
 }
@@ -34,6 +38,60 @@ button {
   display: flex;
   gap: 0.5rem;
   margin-bottom: 0.75rem;
+}
+
+.game-setup-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.game-setup-actions p {
+  margin: 0;
+}
+
+#game-player-list {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+#game-player-list li {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.35rem 0.35rem 0.35rem 0.65rem;
+  border-left: 0.25rem solid transparent;
+}
+
+#game-player-list li.selected {
+  border-color: #176b45;
+  background: #edf7f1;
+}
+
+#seating-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 2rem;
+  padding-left: 2rem;
+}
+
+#seating-list li {
+  min-height: 2rem;
+  padding-left: 0.25rem;
+}
+
+#score-entry-form label {
+  grid-template-columns: minmax(0, 1fr) 7rem;
+  align-items: center;
+}
+
+#score-entry-form input {
+  width: 100%;
 }
 
 .view-controls button[aria-pressed="true"] {
@@ -72,4 +130,15 @@ h3 {
 
 .empty-state {
   color: #555;
+}
+
+@media (max-width: 420px) {
+  .game-setup-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  #seating-list {
+    grid-template-columns: 1fr;
+  }
 }

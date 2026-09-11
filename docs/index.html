@@ -84,6 +84,33 @@
       <ul id="game-history"></ul>
     </section>
 
+    <section id="new-game">
+      <h2>Start new game</h2>
+      <div id="new-game-controls" hidden>
+        <div class="game-setup-actions">
+          <p id="selection-count">0 of 8 players selected</p>
+          <button id="add-all-players" type="button">Add all (up to 8)</button>
+        </div>
+        <p id="game-setup-status" role="status"></p>
+        <ul id="game-player-list"></ul>
+        <button id="generate-seating" type="button" disabled>
+          Generate random seating
+        </button>
+      </div>
+      <p id="new-game-locked">Unlock editing to start a game.</p>
+
+      <div id="seating" hidden>
+        <h3>Table seating</h3>
+        <ol id="seating-list"></ol>
+        <button id="game-finished" type="button">Game finished</button>
+      </div>
+    </section>
+
+    <section id="score-entry" hidden>
+      <h2>Enter scores</h2>
+      <form id="score-entry-form"></form>
+    </section>
+
     <!-- Firebase (config is public by design, see firebase-setup.md) -->
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
