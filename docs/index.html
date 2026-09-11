@@ -25,15 +25,63 @@
             required
           />
         </label>
-        <button type="submit">Test PIN</button>
+        <button type="submit">Unlock editing</button>
       </form>
       <p id="auth-status" role="status"></p>
+      <button id="sign-out" type="button" hidden>Lock editing</button>
+
+      <form id="add-player-form" hidden>
+        <label>
+          Player name
+          <input
+            id="player-name"
+            type="text"
+            maxlength="80"
+            autocomplete="off"
+            required
+          />
+        </label>
+        <button type="submit">Add player</button>
+      </form>
+      <p id="roster-status" role="status"></p>
       <ul id="player-list"></ul>
     </section>
 
     <section id="leaderboard">
       <h2>Leaderboard</h2>
-      <p>Coming soon.</p>
+      <div class="view-controls" role="group" aria-label="Leaderboard order">
+        <button
+          type="button"
+          data-leaderboard-view="leaders"
+          aria-pressed="true"
+        >
+          Leaders
+        </button>
+        <button
+          type="button"
+          data-leaderboard-view="least-games"
+          aria-pressed="false"
+        >
+          Least games
+        </button>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Player</th>
+              <th scope="col">Points</th>
+              <th scope="col">Games</th>
+              <th scope="col">1st</th>
+              <th scope="col">2nd</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboard-list"></tbody>
+        </table>
+      </div>
+
+      <h3>Game history</h3>
+      <ul id="game-history"></ul>
     </section>
 
     <!-- Firebase (config is public by design, see firebase-setup.md) -->
