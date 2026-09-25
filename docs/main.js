@@ -1,0 +1,2 @@
+loadPlayers();
+loadGames();
