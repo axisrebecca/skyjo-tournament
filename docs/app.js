@@ -17,6 +17,11 @@ const leaderboardViewButtons = document.querySelectorAll(
 );
 const gameHistoryEl = document.getElementById("game-history");
 const newGameSection = document.getElementById("new-game");
+const unfinishedGamesEl = document.getElementById("unfinished-games");
+const unfinishedGamesStatusEl = document.getElementById(
+  "unfinished-games-status",
+);
+const unfinishedGameListEl = document.getElementById("unfinished-game-list");
 const newGameControls = document.getElementById("new-game-controls");
 const newGameLockedEl = document.getElementById("new-game-locked");
 const selectionCountEl = document.getElementById("selection-count");
@@ -35,8 +40,10 @@ let leaderboardView = "leaders";
 let suggestedPlayerIds = [];
 const selectedPlayerIds = new Set();
 let seatedPlayerIds = [];
+let currentGameId = null;
 
 const MAX_SEATS = 8;
+const UNFINISHED_GAME_AGE_MS = 2 * 60 * 60 * 1000;
 
 function numberValue(value) {
   return Number.isFinite(value) ? value : 0;
@@ -180,9 +187,51 @@ function renderLeaderboard() {
 }
 
 function gameDate(game) {
-  if (game.date?.toDate) return game.date.toDate();
-  if (game.date) return new Date(game.date);
+  const date = game.date || game.createdAt;
+  if (date?.toDate) return date.toDate();
+  if (date) return new Date(date);
   return null;
+}
+
+function renderUnfinishedGames() {
+  const cutoff = Date.now() - UNFINISHED_GAME_AGE_MS;
+  const unfinishedGames = games
+    .filter(
+      (game) =>
+        game.status === "in-progress" && gameDate(game)?.getTime() < cutoff,
+    )
+    .sort(
+      (left, right) => gameDate(left).getTime() - gameDate(right).getTime(),
+    );
+
+  unfinishedGamesEl.hidden =
+    unfinishedGames.length === 0 && !unfinishedGamesStatusEl.textContent;
+  unfinishedGameListEl.replaceChildren();
+
+  for (const game of unfinishedGames) {
+    const item = document.createElement("li");
+    const details = document.createElement("p");
+    const resumeButton = document.createElement("button");
+    const discardButton = document.createElement("button");
+    const playerNames = game.seatedIds.map(
+      (playerId) =>
+        players.find((player) => player.id === playerId)?.name ||
+        "Unknown player",
+    );
+
+    details.textContent = `${gameDate(game).toLocaleString()} · ${playerNames.join(", ")}`;
+    resumeButton.type = "button";
+    resumeButton.textContent = "Resume";
+    resumeButton.dataset.resumeGameId = game.id;
+    resumeButton.disabled = !auth.currentUser;
+    discardButton.type = "button";
+    discardButton.textContent = "Discard";
+    discardButton.dataset.discardGameId = game.id;
+    discardButton.dataset.gameRevision = numberValue(game.revision);
+    discardButton.disabled = !auth.currentUser;
+    item.append(details, resumeButton, " ", discardButton);
+    unfinishedGameListEl.appendChild(item);
+  }
 }
 
 function renderGameHistory() {
@@ -200,7 +249,8 @@ function renderGameHistory() {
         ? date.toLocaleDateString()
         : "Undated";
     const playerCount = game.seatedIds?.length || game.results?.length || 0;
-    item.textContent = `${dateText} · ${playerCount} player(s)`;
+    const statusText = game.status === "in-progress" ? " · Not finished" : "";
+    item.textContent = `${dateText} · ${playerCount} players${statusText}`;
     gameHistoryEl.appendChild(item);
   }
 
@@ -249,6 +299,7 @@ function loadPlayers() {
       renderPlayers();
       renderLeaderboard();
       renderGameSetup();
+      renderUnfinishedGames();
     },
     (err) => {
       statusEl.textContent =
@@ -263,6 +314,7 @@ function loadGames() {
     (snapshot) => {
       games = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       renderGameHistory();
+      renderUnfinishedGames();
     },
     (err) => {
       gameHistoryEl.replaceChildren();
@@ -313,6 +365,7 @@ auth.onAuthStateChanged((user) => {
     authStatusEl.textContent = "Enter the organizer PIN to edit the roster.";
   }
   renderPlayers();
+  renderUnfinishedGames();
 });
 
 signOutButton.addEventListener("click", async () => {
@@ -399,6 +452,59 @@ for (const button of leaderboardViewButtons) {
   });
 }
 
+unfinishedGameListEl.addEventListener("click", async (event) => {
+  const resumeButton = event.target.closest("button[data-resume-game-id]");
+  if (resumeButton) {
+    const game = games.find(
+      ({ id }) => id === resumeButton.dataset.resumeGameId,
+    );
+    if (!game || game.status !== "in-progress") return;
+
+    currentGameId = game.id;
+    seatedPlayerIds = [...game.seatedIds];
+    renderScoreEntry();
+    newGameSection.hidden = true;
+    scoreEntrySection.hidden = false;
+    scoreEntrySection.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+
+  const discardButton = event.target.closest("button[data-discard-game-id]");
+  if (!discardButton || !window.confirm("Discard this unfinished game?")) {
+    return;
+  }
+
+  const gameId = discardButton.dataset.discardGameId;
+  const expectedRevision = Number(discardButton.dataset.gameRevision);
+  discardButton.disabled = true;
+  unfinishedGamesStatusEl.textContent = "Discarding game...";
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      const gameRef = db.collection("games").doc(gameId);
+      const snapshot = await transaction.get(gameRef);
+      const game = snapshot.data();
+      if (
+        !snapshot.exists ||
+        game.status !== "in-progress" ||
+        numberValue(game.revision) !== expectedRevision
+      ) {
+        throw new Error("game-conflict");
+      }
+      transaction.delete(gameRef);
+    });
+    unfinishedGamesStatusEl.textContent = "Game discarded.";
+  } catch (err) {
+    discardButton.disabled = false;
+    unfinishedGamesEl.hidden = false;
+    unfinishedGamesStatusEl.textContent =
+      err.message === "game-conflict"
+        ? "Conflict: this game changed and was not discarded."
+        : "Could not discard the game. Try again.";
+    console.error(err);
+  }
+});
+
 gamePlayerListEl.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-game-player-id]");
   if (!button) return;
@@ -425,12 +531,30 @@ addAllPlayersButton.addEventListener("click", () => {
   renderGameSetup();
 });
 
-generateSeatingButton.addEventListener("click", () => {
-  seatedPlayerIds = shuffle([...selectedPlayerIds]);
-  newGameControls.hidden = true;
-  seatingEl.hidden = false;
-  renderSeating();
-  seatingEl.scrollIntoView({ behavior: "smooth", block: "start" });
+generateSeatingButton.addEventListener("click", async () => {
+  const nextSeatedPlayerIds = shuffle([...selectedPlayerIds]);
+  gameSetupStatusEl.textContent = "Starting game...";
+
+  try {
+    const gameRef = await db.collection("games").add({
+      status: "in-progress",
+      revision: 0,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      seatedIds: nextSeatedPlayerIds,
+      waitingIds: suggestedPlayerIds.filter(
+        (playerId) => !selectedPlayerIds.has(playerId),
+      ),
+    });
+    currentGameId = gameRef.id;
+    seatedPlayerIds = nextSeatedPlayerIds;
+    newGameControls.hidden = true;
+    seatingEl.hidden = false;
+    renderSeating();
+    seatingEl.scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (err) {
+    gameSetupStatusEl.textContent = "Could not start the game. Try again.";
+    console.error(err);
+  }
 });
 
 gameFinishedButton.addEventListener("click", () => {

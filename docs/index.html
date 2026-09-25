@@ -86,6 +86,11 @@
 
     <section id="new-game">
       <h2>Start new game</h2>
+      <div id="unfinished-games" hidden>
+        <h3>Unfinished games</h3>
+        <p id="unfinished-games-status" role="status"></p>
+        <ul id="unfinished-game-list"></ul>
+      </div>
       <div id="new-game-controls" hidden>
         <div class="game-setup-actions">
           <p id="selection-count">0 of 8 players selected</p>
@@ -93,9 +98,7 @@
         </div>
         <p id="game-setup-status" role="status"></p>
         <ul id="game-player-list"></ul>
-        <button id="generate-seating" type="button" disabled>
-          Generate random seating
-        </button>
+        <button id="generate-seating" type="button" disabled>Start game</button>
       </div>
       <p id="new-game-locked">Unlock editing to start a game.</p>
 
