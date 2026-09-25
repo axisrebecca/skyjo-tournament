@@ -200,7 +200,7 @@ function renderGameHistory() {
         ? date.toLocaleDateString()
         : "Undated";
     const playerCount = game.seatedIds?.length || game.results?.length || 0;
-    item.textContent = `Session ${game.sessionIndex ?? "?"} · ${dateText} · ${playerCount} player(s)`;
+    item.textContent = `${dateText} · ${playerCount} player(s)`;
     gameHistoryEl.appendChild(item);
   }
 
