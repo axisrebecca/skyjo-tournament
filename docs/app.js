@@ -16,6 +16,7 @@ const leaderboardViewButtons = document.querySelectorAll(
   "button[data-leaderboard-view]",
 );
 const gameHistoryEl = document.getElementById("game-history");
+const gameNotificationEl = document.getElementById("game-notification");
 const newGameSection = document.getElementById("new-game");
 const unfinishedGamesEl = document.getElementById("unfinished-games");
 const unfinishedGamesStatusEl = document.getElementById(
@@ -38,6 +39,8 @@ const scoreEntryForm = document.getElementById("score-entry-form");
 const scoreReviewEl = document.getElementById("score-review");
 const scoreReviewListEl = document.getElementById("score-review-list");
 const editScoresButton = document.getElementById("edit-scores");
+const saveScoresButton = document.getElementById("save-scores");
+const scoreReviewStatusEl = document.getElementById("score-review-status");
 let players = [];
 let games = [];
 let leaderboardView = "leaders";
@@ -45,9 +48,10 @@ let suggestedPlayerIds = [];
 const selectedPlayerIds = new Set();
 let seatedPlayerIds = [];
 let currentGameId = null;
+let currentGameRevision = null;
+let reviewedScores = null;
 
 const MAX_SEATS = 8;
-const UNFINISHED_GAME_AGE_MS = 2 * 60 * 60 * 1000;
 const POINTS_BY_PLACE = { 1: 10, 2: 5, 3: 2 };
 
 function numberValue(value) {
@@ -149,6 +153,7 @@ function renderScoreEntry() {
   scoreEntryHeading.hidden = false;
   scoreEntryForm.hidden = false;
   scoreReviewEl.hidden = true;
+  scoreReviewStatusEl.textContent = "";
 
   for (const playerId of seatedPlayerIds) {
     const player = players.find(({ id }) => id === playerId);
@@ -195,6 +200,23 @@ function renderScoreReview(results) {
   scoreEntryHeading.hidden = true;
   scoreEntryForm.hidden = true;
   scoreReviewEl.hidden = false;
+}
+
+function resetCompletedGame() {
+  currentGameId = null;
+  currentGameRevision = null;
+  reviewedScores = null;
+  seatedPlayerIds = [];
+  selectedPlayerIds.clear();
+  scoreEntryForm.replaceChildren();
+  scoreEntrySection.hidden = true;
+  seatingEl.hidden = true;
+  newGameSection.hidden = false;
+  newGameControls.hidden = !auth.currentUser;
+  gameSetupStatusEl.textContent = "";
+  gameNotificationEl.textContent = "Scores saved.";
+  gameNotificationEl.hidden = false;
+  renderGameSetup();
 }
 
 function renderLeaderboard() {
@@ -252,18 +274,16 @@ function gameDate(game) {
 }
 
 function renderUnfinishedGames() {
-  const cutoff = Date.now() - UNFINISHED_GAME_AGE_MS;
   const unfinishedGames = games
-    .filter(
-      (game) =>
-        game.status === "in-progress" && gameDate(game)?.getTime() < cutoff,
-    )
+    .filter((game) => game.status === "in-progress")
     .sort(
-      (left, right) => gameDate(left).getTime() - gameDate(right).getTime(),
+      (left, right) =>
+        (gameDate(left)?.getTime() || 0) - (gameDate(right)?.getTime() || 0),
     );
 
   unfinishedGamesEl.hidden =
-    unfinishedGames.length === 0 && !unfinishedGamesStatusEl.textContent;
+    Boolean(currentGameId) ||
+    (unfinishedGames.length === 0 && !unfinishedGamesStatusEl.textContent);
   unfinishedGameListEl.replaceChildren();
 
   for (const game of unfinishedGames) {
@@ -271,13 +291,14 @@ function renderUnfinishedGames() {
     const details = document.createElement("p");
     const resumeButton = document.createElement("button");
     const discardButton = document.createElement("button");
+    const date = gameDate(game);
     const playerNames = game.seatedIds.map(
       (playerId) =>
         players.find((player) => player.id === playerId)?.name ||
         "Unknown player",
     );
 
-    details.textContent = `${gameDate(game).toLocaleString()} · ${playerNames.join(", ")}`;
+    details.textContent = `${date?.toLocaleString() || "Undated"} · ${playerNames.join(", ")}`;
     resumeButton.type = "button";
     resumeButton.textContent = "Resume";
     resumeButton.dataset.resumeGameId = game.id;
@@ -520,10 +541,13 @@ unfinishedGameListEl.addEventListener("click", async (event) => {
 
     currentGameId = game.id;
     seatedPlayerIds = [...game.seatedIds];
-    renderScoreEntry();
-    newGameSection.hidden = true;
-    scoreEntrySection.hidden = false;
-    scoreEntrySection.scrollIntoView({ behavior: "smooth", block: "start" });
+    currentGameRevision = numberValue(game.revision);
+    newGameSection.hidden = false;
+    newGameControls.hidden = true;
+    seatingEl.hidden = false;
+    renderUnfinishedGames();
+    renderSeating();
+    seatingEl.scrollIntoView({ behavior: "smooth", block: "start" });
     return;
   }
 
@@ -551,7 +575,7 @@ unfinishedGameListEl.addEventListener("click", async (event) => {
       }
       transaction.delete(gameRef);
     });
-    unfinishedGamesStatusEl.textContent = "Game discarded.";
+    unfinishedGamesStatusEl.textContent = "";
   } catch (err) {
     discardButton.disabled = false;
     unfinishedGamesEl.hidden = false;
@@ -591,19 +615,106 @@ addAllPlayersButton.addEventListener("click", () => {
 
 scoreEntryForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  const scores = Object.fromEntries(
+  reviewedScores = Object.fromEntries(
     seatedPlayerIds.map((playerId) => [
       playerId,
       scoreEntryForm.elements.namedItem(playerId).valueAsNumber,
     ]),
   );
-  renderScoreReview(calculateGameResults(scores));
+  renderScoreReview(calculateGameResults(reviewedScores));
 });
 
 editScoresButton.addEventListener("click", () => {
   scoreEntryHeading.hidden = false;
   scoreEntryForm.hidden = false;
   scoreReviewEl.hidden = true;
+});
+
+saveScoresButton.addEventListener("click", async () => {
+  if (!currentGameId || currentGameRevision === null || !reviewedScores) return;
+  if (!navigator.onLine) {
+    scoreReviewStatusEl.textContent = "You are offline. Scores were not saved.";
+    return;
+  }
+
+  saveScoresButton.disabled = true;
+  scoreReviewStatusEl.textContent = "Saving scores...";
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      const gameRef = db.collection("games").doc(currentGameId);
+      const gameSnapshot = await transaction.get(gameRef);
+      const game = gameSnapshot.data();
+      const seatingUnchanged =
+        game?.seatedIds?.length === seatedPlayerIds.length &&
+        game.seatedIds.every(
+          (playerId, index) => playerId === seatedPlayerIds[index],
+        );
+
+      if (
+        !gameSnapshot.exists ||
+        game.status !== "in-progress" ||
+        numberValue(game.revision) !== currentGameRevision ||
+        !seatingUnchanged
+      ) {
+        throw new Error("game-conflict");
+      }
+
+      const playerRefs = seatedPlayerIds.map((playerId) =>
+        db.collection("players").doc(playerId),
+      );
+      const playerSnapshots = await Promise.all(
+        playerRefs.map((playerRef) => transaction.get(playerRef)),
+      );
+      if (
+        playerSnapshots.some(
+          (playerSnapshot) =>
+            !playerSnapshot.exists || playerSnapshot.data().active === false,
+        )
+      ) {
+        throw new Error("player-conflict");
+      }
+
+      const results = calculateGameResults(reviewedScores).map((result) => ({
+        playerId: result.playerId,
+        rawScore: result.score,
+        place: result.place,
+        pointsAwarded: result.points,
+        doubled: false,
+      }));
+
+      for (const [index, playerSnapshot] of playerSnapshots.entries()) {
+        const player = playerSnapshot.data();
+        const result = results[index];
+        transaction.update(playerRefs[index], {
+          gamesPlayed: numberValue(player.gamesPlayed) + 1,
+          totalPoints: numberValue(player.totalPoints) + result.pointsAwarded,
+          firstPlaceCount:
+            numberValue(player.firstPlaceCount) + (result.place === 1 ? 1 : 0),
+          secondPlaceCount:
+            numberValue(player.secondPlaceCount) + (result.place === 2 ? 1 : 0),
+        });
+      }
+
+      transaction.update(gameRef, {
+        status: "completed",
+        revision: currentGameRevision + 1,
+        results,
+        completedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+    resetCompletedGame();
+  } catch (err) {
+    scoreReviewStatusEl.textContent =
+      err.message === "game-conflict" || err.message === "player-conflict"
+        ? "Conflict: the game or a player changed. Scores were not saved."
+        : err.code === "unavailable"
+          ? "You are offline. Scores were not saved."
+          : "Could not save scores. Try again.";
+    console.error(err);
+  } finally {
+    saveScoresButton.disabled = false;
+  }
 });
 
 generateSeatingButton.addEventListener("click", async () => {
@@ -622,8 +733,10 @@ generateSeatingButton.addEventListener("click", async () => {
     });
     currentGameId = gameRef.id;
     seatedPlayerIds = nextSeatedPlayerIds;
+    currentGameRevision = 0;
     newGameControls.hidden = true;
     seatingEl.hidden = false;
+    renderUnfinishedGames();
     renderSeating();
     seatingEl.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (err) {
