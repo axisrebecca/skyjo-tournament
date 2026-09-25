@@ -33,7 +33,11 @@ const seatingEl = document.getElementById("seating");
 const seatingListEl = document.getElementById("seating-list");
 const gameFinishedButton = document.getElementById("game-finished");
 const scoreEntrySection = document.getElementById("score-entry");
+const scoreEntryHeading = document.getElementById("score-entry-heading");
 const scoreEntryForm = document.getElementById("score-entry-form");
+const scoreReviewEl = document.getElementById("score-review");
+const scoreReviewListEl = document.getElementById("score-review-list");
+const editScoresButton = document.getElementById("edit-scores");
 let players = [];
 let games = [];
 let leaderboardView = "leaders";
@@ -44,6 +48,7 @@ let currentGameId = null;
 
 const MAX_SEATS = 8;
 const UNFINISHED_GAME_AGE_MS = 2 * 60 * 60 * 1000;
+const POINTS_BY_PLACE = { 1: 10, 2: 5, 3: 2 };
 
 function numberValue(value) {
   return Number.isFinite(value) ? value : 0;
@@ -59,6 +64,22 @@ function shuffle(items) {
     ];
   }
   return shuffled;
+}
+
+function calculateGameResults(scores) {
+  const sortedScores = Object.values(scores).sort(
+    (left, right) => left - right,
+  );
+
+  return Object.entries(scores).map(([playerId, score]) => {
+    const place = sortedScores.indexOf(score) + 1;
+    return {
+      playerId,
+      score,
+      place,
+      points: POINTS_BY_PLACE[place] || 0,
+    };
+  });
 }
 
 function refreshSuggestions() {
@@ -125,6 +146,10 @@ function renderSeating() {
 
 function renderScoreEntry() {
   scoreEntryForm.replaceChildren();
+  scoreEntryHeading.hidden = false;
+  scoreEntryForm.hidden = false;
+  scoreReviewEl.hidden = true;
+
   for (const playerId of seatedPlayerIds) {
     const player = players.find(({ id }) => id === playerId);
     const label = document.createElement("label");
@@ -137,6 +162,39 @@ function renderScoreEntry() {
     label.appendChild(input);
     scoreEntryForm.appendChild(label);
   }
+
+  const reviewButton = document.createElement("button");
+  reviewButton.type = "submit";
+  reviewButton.textContent = "Review scores";
+  scoreEntryForm.appendChild(reviewButton);
+}
+
+function renderScoreReview(results) {
+  const sortedResults = [...results].sort(
+    (left, right) => left.place - right.place,
+  );
+  scoreReviewListEl.replaceChildren();
+
+  for (const result of sortedResults) {
+    const player = players.find(({ id }) => id === result.playerId);
+    const row = document.createElement("tr");
+    const values = [
+      result.place,
+      player?.name || "Unknown player",
+      result.score,
+      result.points,
+    ];
+    for (const value of values) {
+      const cell = document.createElement("td");
+      cell.textContent = value;
+      row.appendChild(cell);
+    }
+    scoreReviewListEl.appendChild(row);
+  }
+
+  scoreEntryHeading.hidden = true;
+  scoreEntryForm.hidden = true;
+  scoreReviewEl.hidden = false;
 }
 
 function renderLeaderboard() {
@@ -529,6 +587,23 @@ addAllPlayersButton.addEventListener("click", () => {
       ? "Selected the 8 players with the fewest games."
       : "All active players selected.";
   renderGameSetup();
+});
+
+scoreEntryForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const scores = Object.fromEntries(
+    seatedPlayerIds.map((playerId) => [
+      playerId,
+      scoreEntryForm.elements.namedItem(playerId).valueAsNumber,
+    ]),
+  );
+  renderScoreReview(calculateGameResults(scores));
+});
+
+editScoresButton.addEventListener("click", () => {
+  scoreEntryHeading.hidden = false;
+  scoreEntryForm.hidden = false;
+  scoreReviewEl.hidden = true;
 });
 
 generateSeatingButton.addEventListener("click", async () => {

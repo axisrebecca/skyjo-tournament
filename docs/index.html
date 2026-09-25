@@ -110,8 +110,25 @@
     </section>
 
     <section id="score-entry" hidden>
-      <h2>Enter scores</h2>
+      <h2 id="score-entry-heading">Enter scores</h2>
       <form id="score-entry-form"></form>
+      <div id="score-review" hidden>
+        <h2>Review scores</h2>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Place</th>
+                <th>Player</th>
+                <th>Score</th>
+                <th>Points</th>
+              </tr>
+            </thead>
+            <tbody id="score-review-list"></tbody>
+          </table>
+        </div>
+        <button id="edit-scores" type="button">Edit scores</button>
+      </div>
     </section>
 
     <!-- Firebase (config is public by design, see firebase-setup.md) -->
