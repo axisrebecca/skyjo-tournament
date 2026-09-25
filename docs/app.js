@@ -52,7 +52,6 @@ let currentGameRevision = null;
 let reviewedScores = null;
 
 const MAX_SEATS = 8;
-const POINTS_BY_PLACE = { 1: 10, 2: 5, 3: 2 };
 
 function numberValue(value) {
   return Number.isFinite(value) ? value : 0;
@@ -68,22 +67,6 @@ function shuffle(items) {
     ];
   }
   return shuffled;
-}
-
-function calculateGameResults(scores) {
-  const sortedScores = Object.values(scores).sort(
-    (left, right) => left - right,
-  );
-
-  return Object.entries(scores).map(([playerId, score]) => {
-    const place = sortedScores.indexOf(score) + 1;
-    return {
-      playerId,
-      score,
-      place,
-      points: POINTS_BY_PLACE[place] || 0,
-    };
-  });
 }
 
 function refreshSuggestions() {
@@ -734,6 +717,8 @@ generateSeatingButton.addEventListener("click", async () => {
     currentGameId = gameRef.id;
     seatedPlayerIds = nextSeatedPlayerIds;
     currentGameRevision = 0;
+    gameNotificationEl.textContent = "";
+    gameNotificationEl.hidden = true;
     newGameControls.hidden = true;
     seatingEl.hidden = false;
     renderUnfinishedGames();
